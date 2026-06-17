@@ -32,6 +32,45 @@ classDiagram
       +compile(id) ToolResult
     }
 
+    class OrchestrationGuard {
+      +authorize(toolCall, session) GuardDecision
+      +recordResult(toolCall, result)
+      +detectLoop(session) LoopAssessment
+      +remainingBudget(session) ExecutionBudget
+    }
+
+    class ExecutionBudget {
+      +maxToolCalls
+      +maxMutations
+      +maxCompileAttempts
+      +maxDeployAttempts
+      +maxAutoFixIterations
+    }
+
+    class ProgressTracker {
+      +assess(before, after) ProgressAssessment
+      +hasModelProgress()
+      +hasValidationProgress()
+      +hasRuntimeProgress()
+    }
+
+    class LoopDetector {
+      +detectRepeatedCommand(history)
+      +detectRepeatedError(history)
+      +detectNoOpMutation(history)
+    }
+
+    class CircuitBreaker {
+      +allow(system, operation) boolean
+      +recordSuccess(system, operation)
+      +recordFailure(system, operation)
+    }
+
+    class HumanHandoffPolicy {
+      +shouldEscalate(loopAssessment) boolean
+      +buildEscalation(error) AiFriendlyError
+    }
+
     class IFlowBackendRegistry {
       +resolve(workspace) IFlowBackend
     }
@@ -86,7 +125,13 @@ classDiagram
       +retryable
     }
 
-    LlmToolFacade --> IFlowApplicationService
+    LlmToolFacade --> OrchestrationGuard
+    OrchestrationGuard --> ExecutionBudget
+    OrchestrationGuard --> ProgressTracker
+    OrchestrationGuard --> LoopDetector
+    OrchestrationGuard --> CircuitBreaker
+    OrchestrationGuard --> HumanHandoffPolicy
+    OrchestrationGuard --> IFlowApplicationService
     IFlowApplicationService --> IFlowBackendRegistry
     IFlowBackendRegistry --> IFlowBackend
     IFlowBackend --> IFlowMaintainer

@@ -783,7 +783,52 @@ arrayPaths [
 
 Tool 不应把 Java exception、SAP stack trace、完整 BPMN XML 或完整内部模型dump 直接返回给 LLM。低层信息应进入 diagnostics / trace，并用 `errorCode`、`affectedObject`、`suggestedFixes` 摘要给 LLM。
 
-### 10.1 Maintainer state tools
+### 10.1 Orchestration guard contract
+
+每次 tool call 执行前必须经过 Orchestration Guard。Guard 可以拒绝 tool call，并返回 AI-friendly error。
+
+Guard 拒绝场景：
+
+- `TOOL_BUDGET_EXCEEDED`: 超过本轮最大 tool call 数。
+- `MUTATION_BUDGET_EXCEEDED`: 超过 mutation 次数。
+- `REPEATED_TOOL_CALL`: 相同 tool + 相同参数重复执行。
+- `REPEATED_ERROR_NO_PROGRESS`: 相同 error code + affected object 重复出现。
+- `NO_EFFECT_MUTATION`: mutation 后 canonical fingerprint 未变化。
+- `CIRCUIT_BREAKER_OPEN`: 外部系统连续失败。
+
+示例：
+
+```json
+{
+  "status": "failed",
+  "errorCode": "REPEATED_ERROR_NO_PROGRESS",
+  "category": "loop_guard",
+  "severity": "error",
+  "message": "Auto-fix stopped because the same validation error repeated without model progress.",
+  "affectedObject": {
+    "kind": "channel",
+    "semanticKey": "channel.receiver/SOAP_Receiver_MM"
+  },
+  "reason": "The last 3 attempts all produced MISSING_REQUIRED_PARAMETER for receiver.qualityOfService.",
+  "suggestedFixes": [
+    {
+      "action": "rollbackIFlow",
+      "arguments": {
+        "targetRevision": 12
+      }
+    },
+    {
+      "action": "askUser",
+      "arguments": {
+        "question": "Which XI QualityOfService should be used?"
+      }
+    }
+  ],
+  "retryable": false
+}
+```
+
+### 10.2 Maintainer state tools
 
 LLM 需要看到当前 iFlow 的完整上下文，但不能读取完整内部模型。因此 maintainer 必须提供面向 LLM 的状态渲染：
 
@@ -838,7 +883,7 @@ Rollback tool：
 
 Rollback 必须生成新的 revision，并返回回退前后摘要。
 
-### 10.2 createIFlow
+### 10.3 createIFlow
 
 创建 iFlow 根对象。
 
@@ -850,7 +895,7 @@ Rollback 必须生成新的 revision，并返回回退前后摘要。
 }
 ```
 
-### 10.3 addParticipant
+### 10.4 addParticipant
 
 ```json
 {
@@ -861,7 +906,7 @@ Rollback 必须生成新的 revision，并返回回退前后摘要。
 }
 ```
 
-### 10.4 addSenderChannel / addReceiverChannel
+### 10.5 addSenderChannel / addReceiverChannel
 
 ```json
 {
@@ -878,7 +923,7 @@ Rollback 必须生成新的 revision，并返回回退前后摘要。
 }
 ```
 
-### 10.5 addProcess
+### 10.6 addProcess
 
 ```json
 {
@@ -889,7 +934,7 @@ Rollback 必须生成新的 revision，并返回回退前后摘要。
 }
 ```
 
-### 10.6 Typed step tools
+### 10.7 Typed step tools
 
 LLM-facing tools 不暴露通用 `addStep(kind, config)`。每类 step 使用明确的 tool schema，后端内部再通过 `StepFactory` 创建类型化 step 对象。
 
@@ -960,7 +1005,7 @@ addJsonToXmlConverter tool
 
 `StepFactory`、`ChannelFactory`、`ProcessFactory` 是后端抽象，不是 LLM tool name。
 
-### 10.7 Edge operations
+### 10.8 Edge operations
 
 边也必须类型化，不能让 LLM 自由发明类型。
 
@@ -1012,7 +1057,7 @@ EdgeType =
 
 `deleteEdge` 必须返回被断开的上下游，以及建议的下一步连接。
 
-### 10.8 Node / step update and delete
+### 10.9 Node / step update and delete
 
 节点 / step 类型必须枚举：
 
@@ -1075,7 +1120,7 @@ EdgeRepairStrategy =
   DELETE_DOWNSTREAM_UNTIL_JOIN
 ```
 
-### 10.9 connectSteps
+### 10.10 connectSteps
 
 简单线性流程可由 step order 推导；复杂流程应显式连接。
 
@@ -1089,7 +1134,7 @@ EdgeRepairStrategy =
 }
 ```
 
-### 10.10 importIFlow
+### 10.11 importIFlow
 
 从已有 artifact / BPMN XML 解析为内部模型：
 
@@ -1104,7 +1149,7 @@ EdgeRepairStrategy =
 
 导入结果必须返回 raw artifact checksum、semantic fingerprint、是否匹配已有内部模型/ archetype，以及被忽略的 editor-only diff。
 
-### 10.11 deriveArchetype
+### 10.12 deriveArchetype
 
 从多个导入样例归纳模板：
 
@@ -1116,7 +1161,7 @@ EdgeRepairStrategy =
 }
 ```
 
-### 10.12 instantiateArchetype
+### 10.13 instantiateArchetype
 
 从模板生成新的业务 iFlow：
 
@@ -1133,7 +1178,7 @@ EdgeRepairStrategy =
 }
 ```
 
-### 10.13 compareIFlows
+### 10.14 compareIFlows
 
 比较两个导入结果或两个 model revision：
 
@@ -1158,6 +1203,8 @@ MVP 必须包含：
 - Tool failure 必须返回 AI-friendly error object，并包含 `errorCode`、`affectedObject`、`reason`、`suggestedFixes`。
 - Maintainer 必须支持 Markdown / Mermaid state rendering。
 - Maintainer 必须支持 rollback to revision。
+- Orchestration Guard 必须限制 tool budget、mutation budget、auto-fix iterations、repeated errors 和 no-op mutations。
+- 外部系统调用必须受 circuit breaker 保护。
 - 节点、step、channel、adapter、edge 类型必须使用枚举。
 - add/update/delete node 或 edge 必须是原子操作，不能产生空节点、空边或半配置对象。
 - `processCall` 必须引用存在的 local process。

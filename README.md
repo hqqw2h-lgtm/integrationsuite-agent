@@ -7,6 +7,7 @@ The core idea is:
 ```text
 User requirement
   -> LangChain4j orchestrator
+  -> orchestration guardrails
   -> discovery tools / iFlow editing tools / knowledge tools
   -> backend-owned typed iFlow model
   -> deterministic compiler

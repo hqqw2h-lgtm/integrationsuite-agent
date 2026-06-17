@@ -18,7 +18,8 @@ flowchart TD
     UI --> Session[Requirement Session Service]
     Session --> Orchestrator[LangChain4j Agent Orchestrator]
 
-    Orchestrator -->|tool calls only| Facade[LLM Tool Facade]
+    Orchestrator --> Guard[Orchestration Guard<br/>budget / loop detection / progress tracking]
+    Guard -->|approved tool calls only| Facade[LLM Tool Facade]
 
     subgraph LLMTools[LLM-facing abstract tools]
         Discovery[Discovery Tools<br/>OData / WSDL / Communication]
@@ -68,7 +69,8 @@ flowchart TD
     Smoke --> Error
     Mpl --> Error
     Error --> Facade
-    Facade --> Orchestrator
+    Facade --> Guard
+    Guard --> Orchestrator
 ```
 
 ### 2.1 LLM / Tool / Model 边界
@@ -93,7 +95,33 @@ flowchart LR
     Bpmn[BPMN XML / ifl properties] -. generated only by compiler .- LLM
 ```
 
-### 2.2 Import / reuse / compile flow
+### 2.2 Auto-fix loop guard
+
+```mermaid
+flowchart TD
+    LLM[LLM proposes next tool call] --> Guard[Orchestration Guard]
+    Guard --> Budget{Within execution budget?}
+    Budget -->|no| StopBudget[Stop automation<br/>return budget exceeded error]
+    Budget -->|yes| Repeat{Repeated same command?}
+    Repeat -->|yes| NoOpCheck{No model progress?}
+    Repeat -->|no| Execute[Execute tool]
+    NoOpCheck -->|yes| StopLoop[Trigger loop guard<br/>rollback / ask user / human review]
+    NoOpCheck -->|no| Execute
+
+    Execute --> Result[Tool result]
+    Result --> Progress{Progress detected?}
+    Progress -->|yes| Continue[Allow next step]
+    Progress -->|no| Count[Increment no-progress counter]
+    Count --> Threshold{Threshold reached?}
+    Threshold -->|no| Continue
+    Threshold -->|yes| StopLoop
+
+    StopLoop --> LastValid[Rollback to last valid revision]
+    StopLoop --> AskUser[Ask user for missing decision]
+    StopLoop --> Human[Human review / escalation]
+```
+
+### 2.3 Import / reuse / compile flow
 
 ```mermaid
 flowchart TD
@@ -157,6 +185,7 @@ Agent 的硬规则：
 5. 部署前必须调用 validation tool。
 6. 失败后必须读取 AI-friendly tool error、MPL/trace 摘要，再选择下一步 tool。
 7. 不得把 password、token、client secret 作为 tool 参数传入。
+8. 不能绕过 Orchestration Guard 的预算、loop detection 和 circuit breaker。
 
 Agent 不负责：
 
@@ -183,6 +212,19 @@ Tool 层是 LLM 与内部模型的唯一边界：
 - `IFlowMaintainer` 必须支持 `renderMarkdown()` 和 `renderMermaid()`，用于给 LLM 返回当前流程上下文。
 - `IFlowMaintainer` 必须支持 `rollbackTo(revision)`，用于自动修复失败或用户要求回退。
 - LLM-facing tool 不接受任意模型补丁；节点、边、channel、adapter、step 类型必须来自枚举。
+
+### 3.4.1 Orchestration Guard
+
+Orchestration Guard 位于 LLM Orchestrator 与 Tool Facade 之间，负责阻止无效循环和危险调用：
+
+- Execution budget: 限制每轮 tool calls、mutation calls、compile attempts、deploy attempts、auto-fix iterations。
+- Loop detector: 检测重复 tool call、重复 error、重复 no-op mutation。
+- Progress tracker: 判断 revision、validation issues、compile phase、deploy state、test result 是否有实质进展。
+- Idempotency checker: 基于 command fingerprint 识别重复 mutation。
+- Circuit breaker: SAP API、metadata、deploy、MPL 读取连续失败时停止同类调用。
+- Escalation policy: 触发 rollback、ask user、human review 或暂停自动修复。
+
+Guard 的输出也是 AI-friendly error，不直接返回底层异常。
 
 Read-only tools：
 

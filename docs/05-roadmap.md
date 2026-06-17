@@ -76,6 +76,10 @@
 - 加载 session history。
 - 加载 retrieved context。
 - 执行工具调用循环。
+- 实现 Orchestration Guard：tool budget、mutation budget、auto-fix iteration budget。
+- 实现 LoopDetector：重复 tool call、重复 error、no-op mutation 检测。
+- 实现 ProgressTracker：根据 revision、validation issue、compile/deploy/test 状态判断是否有进展。
+- 实现 CircuitBreaker：保护 metadata、SAP design-time、deploy、MPL 等外部调用。
 - 实现 AI-friendly tool error contract，避免把 stack trace / model dump 直接返回给模型。
 - 对工具异常做可恢复处理，并把 suggestedFixes 转成下一步候选 tool call。
 - 限制最大自动修复轮数。
@@ -129,6 +133,7 @@
 - 定义 error classifier。
 - 将 MPL error 映射到修复 skill。
 - 支持模型根据 AI-friendly error 调用 tools 修改 iFlow 状态，后端更新内部模型后重新编译。
+- 支持无进展自动停止、rollback 到 last valid revision、ask user 和 human handoff。
 - 支持有限次数 redeploy/retest。
 - 将失败和修复过程写入 trace。
 - 将成功修复沉淀为 few-shot。
