@@ -8,18 +8,18 @@ The core idea is:
 User requirement
   -> LangChain4j orchestrator
   -> discovery tools / iFlow editing tools / knowledge tools
-  -> backend-owned structured iFlow DSL
+  -> backend-owned typed iFlow model
   -> deterministic compiler
   -> iFlow ZIP upload, deployment, smoke test, and trace analysis
 ```
 
-The model never writes SAP BPMN XML or structured DSL directly. It only calls tools such as `addChannel`, `addStep`, `setAdapterPolicy`, and `addDataMappings`; the backend validates, mutates, and versions the structured iFlow DSL. JSON is only one persistence/API representation, not the abstraction boundary.
+The model never writes SAP BPMN XML or typed internal model directly. It only calls tools such as `addChannel`, `addStep`, `setAdapterPolicy`, and `addDataMappings`; the backend validates, mutates, and versions the typed iFlow model. JSON is only one persistence/API representation, not the abstraction boundary.
 
 ## Modules in this prototype
 
 - Requirement sessions and conversation trace
 - Tool call trace model
-- Structured iFlow DSL with participant/channel/process/step/resource/mapping state
+- Typed iFlow Model with participant/channel/process/step/resource/mapping state
 - Atomic iFlow editing tools
 - OData discovery tool contracts with safe sample responses
 - Knowledge, rules, skills, and few-shot retrieval contracts
@@ -31,7 +31,7 @@ The model never writes SAP BPMN XML or structured DSL directly. It only calls to
 
 - [Requirements](docs/01-requirements.md)
 - [Architecture Design](docs/02-architecture.md)
-- [Structured DSL and Tools](docs/03-graph-dsl-and-tools.md)
+- [iFlow Model and Tools](docs/03-graph-dsl-and-tools.md)
 - [Knowledge, Skills, Rules, and Trace](docs/04-knowledge-skills-rules-trace.md)
 - [Roadmap](docs/05-roadmap.md)
 

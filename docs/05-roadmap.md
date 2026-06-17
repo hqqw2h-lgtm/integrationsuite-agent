@@ -8,8 +8,8 @@
 - LangChain4j tool annotation 集成。
 - 内存版 session repository。
 - 内存版 graph repository。
-- Graph-based MVP domain model，作为结构化 iFlow DSL 的第一版存储骨架。
-- 原子 Graph / DSL tool。
+- Graph-based MVP domain model，作为类型化 iFlow 内部模型的第一版存储骨架。
+- 原子 iFlow editing tool。
 - OData discovery stub。
 - Communication discovery stub。
 - Knowledge tool stub。
@@ -62,7 +62,7 @@
 - 实现 hybrid retrieval。
 - 将 PO query case 作为第一批 few-shot。
 - 将 REST-to-XI 同构 iFlow 样例沉淀为 archetype / few-shot。
-- 将安全规则接入 Graph validator。
+- 将安全规则接入 model validator。
 
 ## Phase 4: LangChain4j Tool Calling Loop
 
@@ -76,13 +76,13 @@
 - 加载 session history。
 - 加载 retrieved context。
 - 执行工具调用循环。
-- 实现 AI-friendly tool error contract，避免把 stack trace / DSL dump 直接返回给模型。
+- 实现 AI-friendly tool error contract，避免把 stack trace / model dump 直接返回给模型。
 - 对工具异常做可恢复处理，并把 suggestedFixes 转成下一步候选 tool call。
 - 限制最大自动修复轮数。
 
 ## Phase 5: Template-based iFlow Compiler
 
-目标：把结构化 iFlow DSL 编译为可上传 iFlow ZIP。
+目标：把类型化 iFlow 内部模型编译为可上传 iFlow ZIP。
 
 任务：
 
@@ -128,7 +128,7 @@
 
 - 定义 error classifier。
 - 将 MPL error 映射到修复 skill。
-- 支持模型根据 AI-friendly error 调用 tools 修改 iFlow 状态，后端更新 DSL 后重新编译。
+- 支持模型根据 AI-friendly error 调用 tools 修改 iFlow 状态，后端更新内部模型后重新编译。
 - 支持有限次数 redeploy/retest。
 - 将失败和修复过程写入 trace。
 - 将成功修复沉淀为 few-shot。
@@ -141,7 +141,7 @@
 
 - Requirement session list。
 - Chat + tool trace timeline。
-- 结构化 iFlow DSL 可视化。
+- 类型化 iFlow 内部模型可视化。
 - Participant / channel / process / step editor。
 - Knowledge hit viewer。
 - Compile/deploy/test 状态面板。

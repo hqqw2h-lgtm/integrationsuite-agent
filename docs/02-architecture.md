@@ -3,10 +3,10 @@
 ## 1. 架构原则
 
 - 大模型负责规划、查询、决策和调用工具。
-- Java 后端负责 tools、DSL 状态、校验、编译、部署、测试和审计。
-- 大模型不直接读取或提交完整 DSL；结构化 iFlow DSL 是 tool 层之后的内部状态模型。
-- iFlow 的内部模型是结构化 iFlow DSL，不是 BPMN XML；JSON 只是持久化和 API 传输格式之一。
-- BPMN XML 和 iFlow ZIP 只能由确定性 compiler 生成。
+- Java 后端负责 tools、内部模型状态、校验、编译、部署、测试和审计。
+- 大模型不直接读取或提交完整内部模型；类型化 iFlow 内部模型是 tool 层之后的内部状态。
+- iFlow 的内部模型是 BPMN-backed typed graph data structure：它不是自定义语言，也不是原始 BPMN XML；JSON 只是持久化和 API 传输格式之一。
+- BPMN XML、SAP `ifl` 扩展属性、资源文件和 iFlow ZIP 只能由确定性 compiler 从内部模型生成。
 - 所有外部系统访问通过 Tool / Client 封装。
 - 每次需求执行过程必须可追踪、可回放、可评估。
 
@@ -33,7 +33,7 @@ LangChain4j Agent Orchestrator
         +--> Compile / Deploy / Test Tools
         |
         v
-Structured iFlow DSL Repository
+Typed iFlow Model Repository
         |
         v
 Template-based iFlow Compiler
@@ -83,7 +83,7 @@ Agent 的硬规则：
 
 1. 不直接生成 BPMN XML。
 2. 使用 OData 前必须查询 metadata。
-3. 不直接读取、构造或提交完整 DSL。
+3. 不直接读取、构造或提交完整内部模型。
 4. 只能通过 tools 获取 compact iFlow state summary 和执行状态变更。
 5. 部署前必须调用 validation tool。
 6. 失败后必须读取 AI-friendly tool error、MPL/trace 摘要，再选择下一步 tool。
@@ -91,7 +91,7 @@ Agent 的硬规则：
 
 Agent 不负责：
 
-- 拼接 DSL JSON。
+- 拼接内部模型 JSON。
 - 维护 BPMN ID 或 SAP `ifl:property`。
 - 解释 Java stack trace。
 - 从低层 XML diff 判断业务语义。
@@ -100,12 +100,12 @@ Agent 不负责：
 
 工具分为 read-only discovery tool 和 state mutation tool。
 
-Tool 层是 LLM 与 DSL 的唯一边界：
+Tool 层是 LLM 与内部模型的唯一边界：
 
 - read-only tool 可以返回知识、metadata、compact iFlow summary、semantic diff、validation report。
-- state mutation tool 接收业务语义命令，并在后端事务中修改 DSL。
-- 每次 state mutation 必须记录 tool input、normalized command、DSL revision、validation outcome。
-- Tool 不应把完整 DSL 当作 prompt context 返回给 LLM；需要返回可读摘要和下一步可执行 action。
+- state mutation tool 接收业务语义命令，并在后端事务中修改内部模型。
+- 每次 state mutation 必须记录 tool input、normalized command、model revision、validation outcome。
+- Tool 不应把完整内部模型当作 prompt context 返回给 LLM；需要返回可读摘要和下一步可执行 action。
 
 Read-only tools：
 
@@ -170,9 +170,9 @@ State mutation tools：
 - 是否需要用户输入。
 - 哪些低层细节被隐藏在 diagnostics / trace 中。
 
-### 3.6 结构化 iFlow DSL 层
+### 3.6 类型化 iFlow 内部模型层
 
-结构化 iFlow DSL 是 iFlow 的中间表示。当前代码中的 `IntegrationGraph` 可作为 MVP 存储骨架，后续应逐步演进为 process-aware 的模型：
+类型化 iFlow 内部模型是 iFlow 的后端状态表示。它本质上是一个可校验、可版本化、可投影到 BPMN 的流程图数据结构。当前代码中的 `IntegrationGraph` 可作为 MVP 存储骨架，后续应逐步演进为 process-aware 的模型：
 
 ```text
 IFlow
@@ -208,7 +208,7 @@ IFlow
 ```text
 Template ZIP
   -> load .iflw XML
-  -> apply structured DSL changes
+  -> apply typed model changes
   -> inject scripts / mappings / parameters
   -> update manifest
   -> package ZIP
@@ -235,7 +235,7 @@ com.example.integrationsuiteagent
   agent/              Agent orchestration
   api/                REST controllers and DTOs
   config/             Spring configuration
-  domain/graph/       MVP graph model, evolving toward structured iFlow DSL
+  domain/graph/       MVP graph model, evolving toward typed iFlow model
   domain/session/     Requirement session and trace domain model
   graph/              Graph mutation and validation services
   lifecycle/          Compile/deploy/test lifecycle services
@@ -255,8 +255,8 @@ com.example.integrationsuiteagent
 5. Agent calls getInboundServiceUrl(S4_DEV, SAP_COM_0053, API_PURCHASEORDER_2).
 6. Agent calls createIFlow / createGraph.
 7. Agent calls semantic editing tools such as addChannel / addStep / setAdapterPolicy.
-8. Tool layer updates internal DSL revision and returns compact state summary.
-9. Agent calls validateGraph / validateIFlowDsl.
+8. Tool layer updates internal model revision and returns compact state summary.
+9. Agent calls validateGraph / validateIFlowModel.
 10. Agent calls compileIflow.
 11. Agent calls uploadAndDeployIflow.
 12. Agent calls runSmokeTest.
@@ -286,7 +286,7 @@ LLM provider gateway
 
 ## 7. 安全设计
 
-- 结构化 DSL 只保存 credential alias。
+- 内部模型只保存 credential alias。
 - Secret 存在 SAP Integration Suite security material 或企业 secret manager。
 - ToolCallTrace 对敏感字段做脱敏。
 - 生产部署必须可配置人工确认。
@@ -299,7 +299,7 @@ LLM provider gateway
 - 每次用户消息。
 - 每次模型回复。
 - 每次工具调用输入输出。
-- DSL 每次版本变化。
+- 内部模型每次版本变化。
 - 编译产物 checksum。
 - 部署 ID。
 - MPL ID。
