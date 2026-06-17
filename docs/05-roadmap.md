@@ -61,6 +61,7 @@
 - 定义 FewShotCase。
 - 实现 hybrid retrieval。
 - 将 PO query case 作为第一批 few-shot。
+- 将 REST-to-XI 同构 iFlow 样例沉淀为 archetype / few-shot。
 - 将安全规则接入 Graph validator。
 
 ## Phase 4: LangChain4j Tool Calling Loop
@@ -90,6 +91,8 @@
 - 建立 process flow 和 channel binding 到 sequence/message flow 的映射。
 - 把 typed adapter / step config 投影为 `ifl:property`。
 - 把 headerTable、propertyTable、xmlJsonPathTable 等表格型属性从结构化列表投影为 SAP table XML。
+- 支持 semantic diff，忽略 BPMN ID、shape ID、waypoint 和 SAP 编辑器生成的 sequence ID。
+- 支持从多个导入 iFlow 归纳 archetype，并从 archetype 实例化新 iFlow。
 - 生成 BPMN DI 坐标。
 - 注入 adapter properties 和 externalized parameters。
 - 注入 scripts/mappings/schemas。

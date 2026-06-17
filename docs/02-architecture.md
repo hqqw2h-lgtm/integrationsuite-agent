@@ -24,6 +24,7 @@ Requirement Session Service
 LangChain4j Agent Orchestrator
         |
         +--> Knowledge / Skills / Rules Retriever
+        +--> Archetype / Template Retriever
         +--> OData Discovery Tools
         +--> Communication Tools
         +--> Structured DSL Editing Tools
@@ -95,6 +96,7 @@ Read-only tools：
 - 查询 Communication Arrangement。
 - 查询 credential alias 是否存在。
 - 查询知识库、样本库、skills、rules。
+- 查询 iFlow archetype、模板实例和 semantic diff 历史。
 - 查询部署和 MPL 日志。
 
 State mutation tools：
@@ -105,6 +107,8 @@ State mutation tools：
 - setNodeProperties。
 - setEdgeProperties。
 - addDataMappings。
+- deriveArchetype。
+- instantiateArchetype。
 - compileIflow。
 - deployIflow。
 
@@ -135,6 +139,8 @@ IFlow
 - snapshot。
 - rollback。
 - compiler input。
+- semantic diff。
+- archetype extraction and instantiation。
 
 ### 3.6 Compiler 层
 

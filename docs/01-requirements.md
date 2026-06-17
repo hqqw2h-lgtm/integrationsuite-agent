@@ -53,11 +53,11 @@ Agent 应执行：
 4. 创建结构化 iFlow DSL。
 5. 添加 HTTP sender、content modifier、request reply、OData receiver、end event。
 6. 配置 `$expand=_PurchaseOrderItem`。
-7. 校验 Graph。
+7. 校验 DSL。
 8. 编译 iFlow ZIP。
 9. 上传部署到 Integration Suite。
 10. 发起测试请求并读取 MPL。
-11. 如果失败，基于日志修改 Graph 或 mapping 后重试。
+11. 如果失败，基于日志修改 DSL 或 mapping 后重试。
 
 ### 4.2 SOAP 到 OData 集成
 
@@ -87,6 +87,16 @@ Agent / DSL 必须能抽象表达：
 - Adapter 和 flow step 的 SAP 专有属性需要通过类型化配置承载；未知属性可作为 vendor extension 保留，但不能成为主要建模方式。
 - 图形坐标属于 layout hint，不能影响流程语义。
 
+### 4.5 同构 REST 到 XI/SOAP iFlow 家族
+
+当系统连续看到 `InboundDelivery`、`IncomingInvoice` 这类结构几乎相同的 iFlow 时，Agent / DSL 必须识别它们属于同一个集成模式家族，而不是生成两份无关联的低层图：
+
+- 共享的 archetype：HTTPS sender -> set headers/properties -> log request -> local process 读取 URL 参数 -> JSON to XML -> set S/4 properties -> request-reply XI receiver -> XML to JSON -> set receiver -> log response -> message end。
+- 可变业务参数：业务对象名、sender endpoint 名称、namespace URI、receiver service interface namespace、externalized parameter 集合、证书 DN、adapter retry/QoS/proxy/header cleanup 策略。
+- 不稳定实现细节：`CallActivity_*`、`SequenceFlow_*`、BPMN DI 坐标、SAP 编辑器重新生成的数字 ID，不能作为语义身份。
+- DSL 必须支持从多个样例抽取可复用模板，并能对模板实例做 semantic diff：只报告 namespace、channel 参数、adapter policy 等真实变化。
+- DSL 必须支持参数目录和 externalization policy：哪些 adapter 属性固定、哪些必须外部化、哪些从 tenant property / global persisted variable / credential alias 读取。
+
 ## 5. 功能需求
 
 ### 5.1 需求会话
@@ -103,6 +113,8 @@ Agent / DSL 必须能抽象表达：
 - DSL 必须表达业务语义和集成模式，不要求作者理解 SAP BPMN XML ID、`cmdVariantUri` 或画布坐标。
 - 节点、边、资源、mapping、外部化参数、adapter 配置和异常策略必须可版本化。
 - DSL 必须支持导入已有 iFlow 后的 round-trip trace：每个语义元素可记录来源 BPMN element ID / `ifl` property key，但 Agent 编辑时默认面对抽象字段。
+- DSL 必须支持稳定语义身份：同一业务步骤在不同 iFlow 导入中即使 BPMN ID 不同，也应能通过 kind、name、process path、adapter binding 和业务角色匹配。
+- DSL 必须支持 iFlow archetype / template instance：把重复集成模式抽象成模板，把业务对象、namespace、endpoint path、receiver interface、adapter policy 和参数清单作为实例化变量。
 - SAP 专有属性必须优先映射到类型化 adapter / step 配置；暂未建模的属性才放入 `vendorExtensions`。
 - DSL 不允许保存明文密码、token、client secret。
 - 所有 node type、edge type、properties 必须 schema 校验。
