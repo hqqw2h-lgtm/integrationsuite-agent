@@ -8,8 +8,8 @@
 - LangChain4j tool annotation 集成。
 - 内存版 session repository。
 - 内存版 graph repository。
-- Graph JSON DSL domain model。
-- 原子 Graph tool。
+- Graph-based MVP domain model，作为类型化 iFlow 内部模型的第一版存储骨架。
+- 原子 iFlow editing tool。
 - OData discovery stub。
 - Communication discovery stub。
 - Knowledge tool stub。
@@ -61,7 +61,8 @@
 - 定义 FewShotCase。
 - 实现 hybrid retrieval。
 - 将 PO query case 作为第一批 few-shot。
-- 将安全规则接入 Graph validator。
+- 将 REST-to-XI 同构 iFlow 样例沉淀为 archetype / few-shot。
+- 将安全规则接入 model validator。
 
 ## Phase 4: LangChain4j Tool Calling Loop
 
@@ -75,21 +76,32 @@
 - 加载 session history。
 - 加载 retrieved context。
 - 执行工具调用循环。
-- 对工具异常做可恢复处理。
+- 实现 Orchestration Guard：tool budget、mutation budget、auto-fix iteration budget。
+- 实现 LoopDetector：重复 tool call、重复 error、no-op mutation 检测。
+- 实现 ProgressTracker：根据 revision、validation issue、compile/deploy/test 状态判断是否有进展。
+- 实现 CircuitBreaker：保护 metadata、SAP design-time、deploy、MPL 等外部调用。
+- 实现 AI-friendly tool error contract，避免把 stack trace / model dump 直接返回给模型。
+- 对工具异常做可恢复处理，并把 suggestedFixes 转成下一步候选 tool call。
 - 限制最大自动修复轮数。
 
 ## Phase 5: Template-based iFlow Compiler
 
-目标：把 Graph JSON DSL 编译为可上传 iFlow ZIP。
+目标：把类型化 iFlow 内部模型编译为可上传 iFlow ZIP。
 
 任务：
 
 - 收集基础 iFlow template ZIP。
 - 分析 `.iflw` BPMN XML 结构。
-- 建立 node type 到 SAP component XML 的映射。
-- 建立 edge type 到 sequence/message flow 的映射。
+- 实现 import canonicalization：解析 BPMN / `ifl` 属性、解码 SAP table XML、分离 layout hint。
+- 计算 semantic fingerprint，支持重复导入幂等识别。
+- 建立 participant / channel / process / step 到 SAP component XML 的映射。
+- 建立 process flow 和 channel binding 到 sequence/message flow 的映射。
+- 把 typed adapter / step config 投影为 `ifl:property`。
+- 把 headerTable、propertyTable、xmlJsonPathTable 等表格型属性从结构化列表投影为 SAP table XML。
+- 支持 semantic diff，忽略 BPMN ID、shape ID、waypoint 和 SAP 编辑器生成的 sequence ID。
+- 支持从多个导入 iFlow 归纳 archetype，并从 archetype 实例化新 iFlow。
 - 生成 BPMN DI 坐标。
-- 注入 adapter properties。
+- 注入 adapter properties 和 externalized parameters。
 - 注入 scripts/mappings/schemas。
 - 生成 externalized parameters。
 - 生成 manifest。
@@ -120,7 +132,8 @@
 
 - 定义 error classifier。
 - 将 MPL error 映射到修复 skill。
-- 支持修改 graph 后重新编译。
+- 支持模型根据 AI-friendly error 调用 tools 修改 iFlow 状态，后端更新内部模型后重新编译。
+- 支持无进展自动停止、rollback 到 last valid revision、ask user 和 human handoff。
 - 支持有限次数 redeploy/retest。
 - 将失败和修复过程写入 trace。
 - 将成功修复沉淀为 few-shot。
@@ -133,8 +146,8 @@
 
 - Requirement session list。
 - Chat + tool trace timeline。
-- Graph DSL 可视化。
-- Node/edge property editor。
+- 类型化 iFlow 内部模型可视化。
+- Participant / channel / process / step editor。
 - Knowledge hit viewer。
 - Compile/deploy/test 状态面板。
 - MPL log viewer。
