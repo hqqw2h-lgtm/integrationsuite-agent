@@ -13,7 +13,7 @@ User requirement
   -> iFlow ZIP upload, deployment, smoke test, and trace analysis
 ```
 
-The model never writes SAP BPMN XML or typed internal model directly. It only calls tools such as `addChannel`, `addStep`, `setAdapterPolicy`, and `addDataMappings`; the backend validates, mutates, and versions the typed iFlow model. JSON is only one persistence/API representation, not the abstraction boundary.
+The model never writes SAP BPMN XML or typed internal model directly. It only calls concrete tools such as `addSenderChannel`, `addReceiverChannel`, `addScriptStep`, `addJsonToXmlConverter`, `setAdapterPolicy`, and `addDataMappings`; the backend validates, mutates, and versions the typed iFlow model. JSON is only one persistence/API representation, not the abstraction boundary.
 
 ## Modules in this prototype
 
@@ -34,6 +34,7 @@ The model never writes SAP BPMN XML or typed internal model directly. It only ca
 - [iFlow Model and Tools](docs/03-graph-dsl-and-tools.md)
 - [Knowledge, Skills, Rules, and Trace](docs/04-knowledge-skills-rules-trace.md)
 - [Roadmap](docs/05-roadmap.md)
+- [Class Diagram](docs/06-class-diagram.md)
 
 ## Run
 

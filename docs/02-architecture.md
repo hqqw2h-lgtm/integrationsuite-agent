@@ -12,40 +12,103 @@
 
 ## 2. 总体架构
 
-```text
-User / UI / API Client
-        |
-        v
-Spring Boot REST API
-        |
-        v
-Requirement Session Service
-        |
-        v
-LangChain4j Agent Orchestrator
-        |
-        +--> Knowledge / Skills / Rules Retriever
-        +--> Archetype / Template Retriever
-        +--> OData Discovery Tools
-        +--> Communication Tools
-        +--> IFlow Editing Tools
-        +--> Mapping Tools
-        +--> Compile / Deploy / Test Tools
-        |
-        v
-Typed iFlow Model Repository
-        |
-        v
-Template-based iFlow Compiler
-        |
-        v
-iFlow ZIP Artifact Store
-        |
-        v
-SAP Integration Suite Design-time / Runtime APIs
-        |
-        v
-Smoke Test + MPL / Trace Analysis
+```mermaid
+flowchart TD
+    User[User / Integration Developer] --> UI[Chat UI / REST API]
+    UI --> Session[Requirement Session Service]
+    Session --> Orchestrator[LangChain4j Agent Orchestrator]
+
+    Orchestrator -->|tool calls only| Facade[LLM Tool Facade]
+
+    subgraph LLMTools[LLM-facing abstract tools]
+        Discovery[Discovery Tools<br/>OData / WSDL / Communication]
+        Knowledge[Knowledge + Archetype Tools<br/>retrieveKnowledge / deriveArchetype / instantiateArchetype]
+        Edit[IFlow Editing Tools<br/>addSenderChannel / addScriptStep / addJsonToXmlConverter]
+        Mapping[Mapping Tools<br/>suggest / validate mappings]
+        Lifecycle[Lifecycle Tools<br/>validate / compile / deploy / test]
+    end
+
+    Facade --> Discovery
+    Facade --> Knowledge
+    Facade --> Edit
+    Facade --> Mapping
+    Facade --> Lifecycle
+
+    Discovery --> App[IFlow Application Service]
+    Knowledge --> App
+    Edit --> App
+    Mapping --> App
+    Lifecycle --> App
+
+    subgraph Backend[Backend-owned model and services]
+        App --> ChannelFactory[ChannelFactory]
+        App --> StepFactories[StepFactory implementations<br/>Script / ContentModifier / Converter / RequestReply]
+        App --> ModelService[Model Mutation Service]
+        ModelService --> Repo[Typed iFlow Model Repository]
+        Repo --> Model[Typed iFlow Internal Model<br/>BPMN-backed process graph]
+        Model --> Validator[IFlow Validator]
+        Model --> Compiler[BPMN Projection Compiler]
+    end
+
+    Compiler --> Bpmn[BPMN XML + SAP ifl Properties]
+    Compiler --> Resources[Scripts / Mappings / Parameters]
+    Bpmn --> Zip[iFlow ZIP Artifact]
+    Resources --> Zip
+
+    Zip --> SapDesign[SAP Integration Suite Design-time API]
+    SapDesign --> SapRuntime[SAP Runtime Deployment]
+    SapRuntime --> Smoke[Smoke Test Runner]
+    SapRuntime --> Mpl[MPL / Trace Reader]
+
+    Validator --> Error[AiFriendlyError]
+    Compiler --> Error
+    Smoke --> Error
+    Mpl --> Error
+    Error --> Facade
+    Facade --> Orchestrator
+```
+
+### 2.1 LLM / Tool / Model 边界
+
+```mermaid
+flowchart LR
+    LLM[LLM] --> ToolSchema[Tool schemas]
+    LLM --> ToolCall[Tool calls]
+    ToolCall --> ToolLayer[Tool Facade + Application Service]
+
+    ToolLayer -->|business command| Factory[Factories + Validators]
+    Factory -->|typed object| Model[Typed iFlow Model]
+    Model -->|compact summary| ToolLayer
+    ToolLayer --> Summary[Compact state summary]
+    ToolLayer --> FriendlyError[AI-friendly error]
+
+    Summary --> LLM
+    FriendlyError --> LLM
+
+    Model -. hidden from LLM .- LLM
+    Bpmn[BPMN XML / ifl properties] -. generated only by compiler .- LLM
+```
+
+### 2.2 Import / reuse / compile flow
+
+```mermaid
+flowchart TD
+    Existing[Existing iFlow ZIP or BPMN XML] --> ImportTool[importIFlow Tool]
+    ImportTool --> Parse[Parse BPMN + ifl Properties]
+    Parse --> Decode[Decode SAP table XML]
+    Decode --> Canonical[Build canonical typed model]
+    Canonical --> Fingerprint[Semantic fingerprint]
+
+    Fingerprint --> Known{Known model or archetype?}
+    Known -->|same fingerprint| Revision[Link origin / create revision]
+    Known -->|similar graph| Archetype[Derive reusable archetype]
+    Known -->|new| NewModel[Create typed iFlow model]
+
+    Revision --> Repo[Model Repository]
+    Archetype --> Repo
+    NewModel --> Repo
+    Repo --> Compiler[BPMN Projection Compiler]
+    Compiler --> Zip[iFlow ZIP]
 ```
 
 ## 3. 分层设计
@@ -120,8 +183,14 @@ State mutation tools：
 
 - createIFlow / createGraph（MVP 兼容）。
 - addParticipant。
-- addChannel。
-- addStep。
+- addSenderChannel。
+- addReceiverChannel。
+- addScriptStep。
+- addContentModifierStep。
+- addJsonToXmlConverter。
+- addXmlToJsonConverter。
+- addProcessCallStep。
+- addRequestReplyStep。
 - connectSteps。
 - setAdapterPolicy。
 - setStepConfig。
@@ -230,6 +299,8 @@ Template ZIP
 
 ## 4. 推荐包结构
 
+核心类关系见 [核心类图](06-class-diagram.md)。
+
 ```text
 com.example.integrationsuiteagent
   agent/              Agent orchestration
@@ -254,7 +325,7 @@ com.example.integrationsuiteagent
 4. Agent calls getODataMetadata(S4_DEV, API_PURCHASEORDER_2).
 5. Agent calls getInboundServiceUrl(S4_DEV, SAP_COM_0053, API_PURCHASEORDER_2).
 6. Agent calls createIFlow / createGraph.
-7. Agent calls semantic editing tools such as addChannel / addStep / setAdapterPolicy.
+7. Agent calls semantic editing tools such as addSenderChannel / addScriptStep / addJsonToXmlConverter / setAdapterPolicy.
 8. Tool layer updates internal model revision and returns compact state summary.
 9. Agent calls validateGraph / validateIFlowModel.
 10. Agent calls compileIflow.
