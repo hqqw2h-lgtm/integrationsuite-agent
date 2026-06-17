@@ -144,6 +144,16 @@ Tool calling 硬约束：
 - tool 失败必须返回 AI-friendly error，禁止只返回 Java stack trace、BPMN XML 片段或低层 SAP property dump。
 - 如果 error 可自动修复，返回建议的下一步 tool call；如果需要用户输入，明确列出缺失信息。
 
+Tool / maintainer 工程化约束：
+
+- 后端必须通过 `IFlowMaintainer` 维护 iFlow 状态；不同维护方式可以有不同实现，例如 `BpmnIFlowMaintainer`、`TypedModelIFlowMaintainer`、`JsonIFlowMaintainer`。
+- `IFlowMaintainer` 必须支持 `snapshot()`、`rollbackTo(revision)`、`renderMarkdown()`、`renderMermaid()`，让 LLM 通过 tool result 看到当前流程上下文，而不是读取完整内部模型。
+- 每次 state mutation 必须创建 revision；失败的 mutation 不能留下半更新状态。
+- 增删改节点和边必须是原子命令：一次 tool call 必须携带该节点或边所需的完整业务信息，不能先创建空节点/空边再让模型补字段。
+- LLM-facing tools 必须使用枚举类型约束 node type、step type、channel type、edge type、adapter type，禁止自由字符串，防止幻觉类型进入内部模型。
+- 删除节点或边必须返回影响分析，例如被删除 step 的上下游连接、被断开的 receiver channel、需要重新连接的流程片段。
+- 修改节点或边必须采用 replace/patch-with-schema 语义，并在 tool result 中返回变更前后摘要和 validation status。
+
 ### 5.4 编译器
 
 - 输入类型化 iFlow 内部模型。
@@ -171,6 +181,7 @@ Tool calling 硬约束：
 - 安全：secret 不落内部模型；敏感值只以 credential alias 引用。
 - 可追踪：每个需求全链路可回放。
 - 可验证：核心 tool action、model mutation 和 validation 必须单元测试覆盖。
+- 可恢复：所有 model mutation 必须可回滚到任意已保存 revision；自动修复循环失败时可以恢复到最后一个 valid revision。
 - 可扩展：SAP client、vector store、compiler、LLM provider 都必须可替换。
 - 稳定性：大模型只能通过工具请求修改 iFlow 状态；后端负责更新内部模型，大模型不能直接写内部模型或最终 BPMN XML。
 - 审计：生产部署应支持人工确认门禁。

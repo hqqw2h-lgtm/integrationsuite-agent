@@ -40,14 +40,15 @@ flowchart TD
     Mapping --> App
     Lifecycle --> App
 
-    subgraph Backend[Backend-owned model and services]
-        App --> ChannelFactory[ChannelFactory]
-        App --> StepFactories[StepFactory implementations<br/>Script / ContentModifier / Converter / RequestReply]
-        App --> ModelService[Model Mutation Service]
-        ModelService --> Repo[Typed iFlow Model Repository]
-        Repo --> Model[Typed iFlow Internal Model<br/>BPMN-backed process graph]
-        Model --> Validator[IFlow Validator]
-        Model --> Compiler[BPMN Projection Compiler]
+    App --> Registry[IFlowBackendRegistry]
+
+    subgraph Backend[Selected IFlowBackend]
+        Registry --> Maintainer[IFlowMaintainer<br/>apply / snapshot / rollback / render]
+        Registry --> Validator[IFlowValidator]
+        Registry --> Compiler[IFlowCompiler]
+        Maintainer --> Document[IFlowDocument Snapshot<br/>BPMN-backed or typed model]
+        Validator --> Document
+        Compiler --> Document
     end
 
     Compiler --> Bpmn[BPMN XML + SAP ifl Properties]
@@ -60,6 +61,8 @@ flowchart TD
     SapRuntime --> Smoke[Smoke Test Runner]
     SapRuntime --> Mpl[MPL / Trace Reader]
 
+    Maintainer --> Summary[Markdown / Mermaid State Summary]
+    Summary --> Facade
     Validator --> Error[AiFriendlyError]
     Compiler --> Error
     Smoke --> Error
@@ -76,8 +79,9 @@ flowchart LR
     LLM --> ToolCall[Tool calls]
     ToolCall --> ToolLayer[Tool Facade + Application Service]
 
-    ToolLayer -->|business command| Factory[Factories + Validators]
-    Factory -->|typed object| Model[Typed iFlow Model]
+    ToolLayer -->|business command| Maintainer[IFlowMaintainer]
+    Maintainer -->|snapshot| Model[IFlowDocument]
+    Maintainer -->|markdown / mermaid| ToolLayer
     Model -->|compact summary| ToolLayer
     ToolLayer --> Summary[Compact state summary]
     ToolLayer --> FriendlyError[AI-friendly error]
@@ -94,7 +98,9 @@ flowchart LR
 ```mermaid
 flowchart TD
     Existing[Existing iFlow ZIP or BPMN XML] --> ImportTool[importIFlow Tool]
-    ImportTool --> Parse[Parse BPMN + ifl Properties]
+    ImportTool --> Registry[IFlowBackendRegistry]
+    Registry --> Maintainer[IFlowMaintainer]
+    Maintainer --> Parse[Parse BPMN + ifl Properties]
     Parse --> Decode[Decode SAP table XML]
     Decode --> Canonical[Build canonical typed model]
     Canonical --> Fingerprint[Semantic fingerprint]
@@ -107,7 +113,7 @@ flowchart TD
     Revision --> Repo[Model Repository]
     Archetype --> Repo
     NewModel --> Repo
-    Repo --> Compiler[BPMN Projection Compiler]
+    Repo --> Compiler[IFlowCompiler]
     Compiler --> Zip[iFlow ZIP]
 ```
 
@@ -170,6 +176,14 @@ Tool 层是 LLM 与内部模型的唯一边界：
 - 每次 state mutation 必须记录 tool input、normalized command、model revision、validation outcome。
 - Tool 不应把完整内部模型当作 prompt context 返回给 LLM；需要返回可读摘要和下一步可执行 action。
 
+工程化规则：
+
+- 每个 state mutation tool 最终都会落到 `IFlowMaintainer.apply(command)`。
+- `IFlowMaintainer` 必须在一次事务内完成 mutation、revision 创建和最小校验。
+- `IFlowMaintainer` 必须支持 `renderMarkdown()` 和 `renderMermaid()`，用于给 LLM 返回当前流程上下文。
+- `IFlowMaintainer` 必须支持 `rollbackTo(revision)`，用于自动修复失败或用户要求回退。
+- LLM-facing tool 不接受任意模型补丁；节点、边、channel、adapter、step 类型必须来自枚举。
+
 Read-only tools：
 
 - 查询 OData metadata。
@@ -200,6 +214,19 @@ State mutation tools：
 - compareIFlows。
 - compileIflow。
 - deployIflow。
+
+Backend-only abstractions：
+
+- `IFlowBackendRegistry`: 根据 workspace、artifact 来源、维护策略选择 backend。
+- `IFlowBackend`: 聚合 maintainer、validator、compiler。
+- `IFlowMaintainer`: 维护某种内部表示，并产出 `IFlowDocument` snapshot。
+- `IFlowCompiler`: 编译某种 `IFlowDocument` 为 iFlow ZIP。
+
+可插拔 backend：
+
+- `BpmnIFlowBackend`: `BpmnIFlowMaintainer` 直接维护 BPMN model，适合 round-trip 现有 iFlow。
+- `TypedModelIFlowBackend`: `TypedModelIFlowMaintainer` 维护类型化流程图，适合新建和抽象编辑。
+- `JsonIFlowBackend`: `JsonIFlowMaintainer` 维护 JSON graph，适合未来轻量/兼容场景。
 
 ### 3.5 AI-friendly Error Contract
 
@@ -265,6 +292,7 @@ IFlow
 - diff。
 - snapshot。
 - rollback。
+- markdown / mermaid rendering for LLM state summary。
 - compiler input。
 - semantic diff。
 - archetype extraction and instantiation。

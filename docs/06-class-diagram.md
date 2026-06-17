@@ -25,11 +25,44 @@ classDiagram
 
     class IFlowApplicationService {
       +createIFlow(cmd) ToolResult
-      +addChannel(cmd) ToolResult
-      +addTypedStep(cmd) ToolResult
-      +connectSteps(cmd) ToolResult
-      +validate(id) ValidationReport
-      +compile(id) IFlowArtifact
+      +execute(command) ToolResult
+      +stateMarkdown(id) ToolResult
+      +rollback(id, revision) ToolResult
+      +validate(id) ToolResult
+      +compile(id) ToolResult
+    }
+
+    class IFlowBackendRegistry {
+      +resolve(workspace) IFlowBackend
+    }
+
+    class IFlowBackend {
+      <<interface>>
+      +maintainer(workspace) IFlowMaintainer
+      +validator() IFlowValidator
+      +compiler() IFlowCompiler
+    }
+
+    class IFlowMaintainer {
+      <<interface>>
+      +apply(command) ToolResult
+      +snapshot() IFlowDocument
+      +rollbackTo(revision) ToolResult
+      +renderMarkdown(options) String
+      +renderMermaid(options) String
+    }
+
+    class IFlowDocument {
+      <<interface>>
+      +id
+      +kind
+      +revision
+      +semanticFingerprint
+    }
+
+    class IFlowCompiler {
+      <<interface>>
+      +compile(document) IFlowArtifact
     }
 
     class ToolResult {
@@ -54,8 +87,62 @@ classDiagram
     }
 
     LlmToolFacade --> IFlowApplicationService
+    IFlowApplicationService --> IFlowBackendRegistry
+    IFlowBackendRegistry --> IFlowBackend
+    IFlowBackend --> IFlowMaintainer
+    IFlowBackend --> IFlowCompiler
+    IFlowMaintainer --> IFlowDocument
+    IFlowCompiler --> IFlowDocument
     LlmToolFacade --> ToolResult
     ToolResult --> AiFriendlyError
+```
+
+## 1.1 Backend 实现组合
+
+```mermaid
+classDiagram
+    class IFlowBackend {
+      <<interface>>
+    }
+    class IFlowMaintainer {
+      <<interface>>
+    }
+    class IFlowCompiler {
+      <<interface>>
+    }
+    class IFlowDocument {
+      <<interface>>
+    }
+
+    class BpmnIFlowBackend
+    class BpmnIFlowMaintainer
+    class BpmnIFlowCompiler
+    class BpmnIFlowDocument
+
+    class TypedModelIFlowBackend
+    class TypedModelIFlowMaintainer
+    class TypedModelToBpmnCompiler
+    class TypedIFlowDocument
+
+    class JsonIFlowBackend
+    class JsonIFlowMaintainer
+    class JsonToBpmnCompiler
+    class JsonIFlowDocument
+
+    IFlowBackend <|.. BpmnIFlowBackend
+    IFlowMaintainer <|.. BpmnIFlowMaintainer
+    IFlowCompiler <|.. BpmnIFlowCompiler
+    IFlowDocument <|.. BpmnIFlowDocument
+
+    IFlowBackend <|.. TypedModelIFlowBackend
+    IFlowMaintainer <|.. TypedModelIFlowMaintainer
+    IFlowCompiler <|.. TypedModelToBpmnCompiler
+    IFlowDocument <|.. TypedIFlowDocument
+
+    IFlowBackend <|.. JsonIFlowBackend
+    IFlowMaintainer <|.. JsonIFlowMaintainer
+    IFlowCompiler <|.. JsonToBpmnCompiler
+    IFlowDocument <|.. JsonIFlowDocument
 ```
 
 ## 2. 类型化 iFlow 内部模型
@@ -111,7 +198,7 @@ classDiagram
       +id
       +sourceStepRef
       +targetStepRef
-      +type
+      +type: EdgeType
       +condition
       +originRef
     }
@@ -120,9 +207,31 @@ classDiagram
       <<abstract>>
       +id
       +name
-      +kind
+      +kind: StepType
       +semanticKey
       +originRef
+    }
+
+    class StepType {
+      <<enumeration>>
+      MESSAGE_START
+      MESSAGE_END
+      SCRIPT
+      CONTENT_MODIFIER
+      JSON_TO_XML_CONVERTER
+      XML_TO_JSON_CONVERTER
+      PROCESS_CALL
+      REQUEST_REPLY
+      ROUTER
+      MESSAGE_MAPPING
+    }
+
+    class EdgeType {
+      <<enumeration>>
+      SEQUENCE_FLOW
+      MESSAGE_FLOW
+      EXCEPTION_FLOW
+      ROUTER_BRANCH
     }
 
     class ScriptStep {
@@ -210,6 +319,8 @@ classDiagram
     ProcessModel "1" --> "*" Step
     ProcessModel "1" --> "*" Flow
     Channel --> AdapterConfig
+    Step --> StepType
+    Flow --> EdgeType
 
     Step <|-- ScriptStep
     Step <|-- ContentModifierStep
@@ -237,7 +348,23 @@ classDiagram
       +insertChannel(model, channel)
       +insertStep(model, processRef, step, placement)
       +connectSteps(model, command)
+      +addEdge(model, command)
+      +updateEdge(model, command)
+      +deleteEdge(model, command)
+      +deleteStep(model, command)
       +updateAdapterPolicy(model, command)
+    }
+
+    class RevisionManager {
+      +createRevision(model, reason)
+      +rollbackTo(model, revision)
+      +lastValidRevision(modelId)
+    }
+
+    class StateRenderer {
+      +renderMarkdown(document, options) String
+      +renderMermaid(document, options) String
+      +renderCompactSummary(document) StateSummary
     }
 
     class ChannelFactory {
@@ -275,8 +402,13 @@ classDiagram
       +suggestedFixes
     }
 
-    class BpmnProjectionCompiler {
+    class TypedModelToBpmnCompiler {
       +compile(model) IFlowArtifact
+    }
+
+    class IFlowCompiler {
+      <<interface>>
+      +compile(document) IFlowArtifact
     }
 
     class BpmnElementWriter {
@@ -295,10 +427,12 @@ classDiagram
 
     IFlowApplicationService --> IFlowRepository
     IFlowApplicationService --> ModelMutationService
+    IFlowApplicationService --> RevisionManager
+    IFlowApplicationService --> StateRenderer
     IFlowApplicationService --> ChannelFactory
     IFlowApplicationService --> StepFactory
     IFlowApplicationService --> IFlowValidator
-    IFlowApplicationService --> BpmnProjectionCompiler
+    IFlowApplicationService --> IFlowCompiler
 
     StepFactory <|.. ScriptStepFactory
     StepFactory <|.. ContentModifierStepFactory
@@ -311,8 +445,9 @@ classDiagram
     ValidationReport --> ModelIssue
     ModelIssue --> AiFriendlyError
 
-    BpmnProjectionCompiler --> BpmnElementWriter
-    BpmnProjectionCompiler --> IFlowArtifact
+    IFlowCompiler <|.. TypedModelToBpmnCompiler
+    TypedModelToBpmnCompiler --> BpmnElementWriter
+    TypedModelToBpmnCompiler --> IFlowArtifact
 ```
 
 ## 4. Import 与 Archetype 支撑类
