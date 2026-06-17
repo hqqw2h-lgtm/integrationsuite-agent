@@ -8,8 +8,8 @@
 - LangChain4j tool annotation 集成。
 - 内存版 session repository。
 - 内存版 graph repository。
-- Graph JSON DSL domain model。
-- 原子 Graph tool。
+- Graph-based MVP domain model，作为结构化 iFlow DSL 的第一版存储骨架。
+- 原子 Graph / DSL tool。
 - OData discovery stub。
 - Communication discovery stub。
 - Knowledge tool stub。
@@ -80,16 +80,18 @@
 
 ## Phase 5: Template-based iFlow Compiler
 
-目标：把 Graph JSON DSL 编译为可上传 iFlow ZIP。
+目标：把结构化 iFlow DSL 编译为可上传 iFlow ZIP。
 
 任务：
 
 - 收集基础 iFlow template ZIP。
 - 分析 `.iflw` BPMN XML 结构。
-- 建立 node type 到 SAP component XML 的映射。
-- 建立 edge type 到 sequence/message flow 的映射。
+- 建立 participant / channel / process / step 到 SAP component XML 的映射。
+- 建立 process flow 和 channel binding 到 sequence/message flow 的映射。
+- 把 typed adapter / step config 投影为 `ifl:property`。
+- 把 headerTable、propertyTable、xmlJsonPathTable 等表格型属性从结构化列表投影为 SAP table XML。
 - 生成 BPMN DI 坐标。
-- 注入 adapter properties。
+- 注入 adapter properties 和 externalized parameters。
 - 注入 scripts/mappings/schemas。
 - 生成 externalized parameters。
 - 生成 manifest。
@@ -120,7 +122,7 @@
 
 - 定义 error classifier。
 - 将 MPL error 映射到修复 skill。
-- 支持修改 graph 后重新编译。
+- 支持修改 DSL 后重新编译。
 - 支持有限次数 redeploy/retest。
 - 将失败和修复过程写入 trace。
 - 将成功修复沉淀为 few-shot。
@@ -133,8 +135,8 @@
 
 - Requirement session list。
 - Chat + tool trace timeline。
-- Graph DSL 可视化。
-- Node/edge property editor。
+- 结构化 iFlow DSL 可视化。
+- Participant / channel / process / step editor。
 - Knowledge hit viewer。
 - Compile/deploy/test 状态面板。
 - MPL log viewer。

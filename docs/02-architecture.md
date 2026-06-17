@@ -4,7 +4,7 @@
 
 - 大模型负责规划、查询、决策和调用工具。
 - Java 后端负责状态、校验、编译、部署、测试和审计。
-- iFlow 的内部模型是 Graph JSON DSL，不是 BPMN XML。
+- iFlow 的内部模型是结构化 iFlow DSL，不是 BPMN XML；JSON 只是持久化和 API 传输格式之一。
 - BPMN XML 和 iFlow ZIP 只能由确定性 compiler 生成。
 - 所有外部系统访问通过 Tool / Client 封装。
 - 每次需求执行过程必须可追踪、可回放、可评估。
@@ -26,12 +26,12 @@ LangChain4j Agent Orchestrator
         +--> Knowledge / Skills / Rules Retriever
         +--> OData Discovery Tools
         +--> Communication Tools
-        +--> Graph Editing Tools
+        +--> Structured DSL Editing Tools
         +--> Mapping Tools
         +--> Compile / Deploy / Test Tools
         |
         v
-Graph JSON DSL Repository
+Structured iFlow DSL Repository
         |
         v
 Template-based iFlow Compiler
@@ -53,7 +53,7 @@ Smoke Test + MPL / Trace Analysis
 负责对外暴露 REST API：
 
 - `/api/requirements`
-- `/api/graphs`
+- `/api/graphs`（MVP 存储骨架；后续演进为 `/api/iflows`）
 - `/api/discovery`
 - `/api/lifecycle`
 
@@ -81,7 +81,7 @@ Agent 的硬规则：
 
 1. 不直接生成 BPMN XML。
 2. 使用 OData 前必须查询 metadata。
-3. 部署前必须 validate graph。
+3. 部署前必须 validate DSL。
 4. 失败后必须读取 MPL/trace 再修正。
 5. 不得将 secret 写入 DSL。
 
@@ -99,7 +99,7 @@ Read-only tools：
 
 State mutation tools：
 
-- createGraph。
+- createIFlow / createGraph（MVP 兼容）。
 - addNode。
 - addEdge。
 - setNodeProperties。
@@ -108,22 +108,28 @@ State mutation tools：
 - compileIflow。
 - deployIflow。
 
-### 3.5 Graph DSL 层
+### 3.5 结构化 iFlow DSL 层
 
-Graph DSL 是 iFlow 的中间表示：
+结构化 iFlow DSL 是 iFlow 的中间表示。当前代码中的 `IntegrationGraph` 可作为 MVP 存储骨架，后续应逐步演进为 process-aware 的模型：
 
 ```text
-IntegrationGraph
-  - nodes
-  - edges
+IFlow
+  - metadata
+  - namespaces
+  - participants
+  - channels
+  - processes
   - resources
-  - externalizedParameters
+  - parameters
+  - policies
+  - layoutHints
+  - vendorExtensions
   - version
 ```
 
 它应支持：
 
-- JSON 序列化。
+- JSON/YAML/数据库记录序列化。
 - schema validation。
 - diff。
 - snapshot。
@@ -137,7 +143,7 @@ IntegrationGraph
 ```text
 Template ZIP
   -> load .iflw XML
-  -> apply graph changes
+  -> apply structured DSL changes
   -> inject scripts / mappings / parameters
   -> update manifest
   -> package ZIP
@@ -164,7 +170,7 @@ com.example.integrationsuiteagent
   agent/              Agent orchestration
   api/                REST controllers and DTOs
   config/             Spring configuration
-  domain/graph/       Graph DSL domain model
+  domain/graph/       MVP graph model, evolving toward structured iFlow DSL
   domain/session/     Requirement session and trace domain model
   graph/              Graph mutation and validation services
   lifecycle/          Compile/deploy/test lifecycle services
@@ -182,13 +188,13 @@ com.example.integrationsuiteagent
 3. Agent retrieves PO query skill and rules.
 4. Agent calls getODataMetadata(S4_DEV, API_PURCHASEORDER_2).
 5. Agent calls getInboundServiceUrl(S4_DEV, SAP_COM_0053, API_PURCHASEORDER_2).
-6. Agent calls createGraph.
+6. Agent calls createIFlow / createGraph.
 7. Agent calls addNode / addEdge / setNodeProperties.
-8. Agent calls validateGraph.
+8. Agent calls validateGraph / validateIFlowDsl.
 9. Agent calls compileIflow.
 10. Agent calls uploadAndDeployIflow.
 11. Agent calls runSmokeTest.
-12. If failed, Agent reads MPL, edits graph, recompiles, redeploys.
+12. If failed, Agent reads MPL, edits DSL, recompiles, redeploys.
 ```
 
 ## 6. 部署架构建议
@@ -214,7 +220,7 @@ LLM provider gateway
 
 ## 7. 安全设计
 
-- Graph DSL 只保存 credential alias。
+- 结构化 DSL 只保存 credential alias。
 - Secret 存在 SAP Integration Suite security material 或企业 secret manager。
 - ToolCallTrace 对敏感字段做脱敏。
 - 生产部署必须可配置人工确认。
@@ -227,7 +233,7 @@ LLM provider gateway
 - 每次用户消息。
 - 每次模型回复。
 - 每次工具调用输入输出。
-- Graph 每次版本变化。
+- DSL 每次版本变化。
 - 编译产物 checksum。
 - 部署 ID。
 - MPL ID。

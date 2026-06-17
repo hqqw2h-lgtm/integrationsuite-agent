@@ -79,7 +79,7 @@ Rules 是硬约束，必须同时给模型和后端校验器使用。
 ```yaml
 - id: no-secrets-in-dsl
   severity: error
-  description: Graph DSL must not contain passwords, tokens, or client secrets.
+  description: Structured iFlow DSL must not contain passwords, tokens, or client secrets.
   enforcement: graph-validator
 
 - id: odata-metadata-before-usage
