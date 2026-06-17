@@ -28,15 +28,26 @@ LLM-facing 层只暴露具体工具，例如：
 - `addXmlToJsonConverter`
 - `addProcessCallStep`
 - `addRequestReplyStep`
+- `updateScriptStep`
+- `updateContentModifierStep`
+- `updateJsonToXmlConverter`
+- `updateXmlToJsonConverter`
+- `updateSenderChannel`
+- `updateReceiverChannel`
+- `deleteChannel`
 - `addEdge`
 - `updateEdge`
 - `deleteEdge`
 - `deleteStep`
 - `setAdapterPolicy`
 - `getIFlowStateMarkdown`
+- `getIFlowStateMermaid`
 - `rollbackIFlow`
 - `validateIFlow`
 - `compileIFlow`
+- `deployIFlow`
+- `runSmokeTest`
+- `readMpl`
 
 LLM-facing tools 不暴露通用 `addStep(kind, config)`，也不接受任意模型补丁。每类节点、边、adapter、step 都必须通过明确 tool schema 和枚举类型约束。
 

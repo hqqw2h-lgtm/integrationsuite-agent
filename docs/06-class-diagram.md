@@ -17,10 +17,27 @@ classDiagram
       +addXmlToJsonConverter(cmd) ToolResult
       +addProcessCallStep(cmd) ToolResult
       +addRequestReplyStep(cmd) ToolResult
+      +updateScriptStep(cmd) ToolResult
+      +updateContentModifierStep(cmd) ToolResult
+      +updateJsonToXmlConverter(cmd) ToolResult
+      +updateXmlToJsonConverter(cmd) ToolResult
+      +updateSenderChannel(cmd) ToolResult
+      +updateReceiverChannel(cmd) ToolResult
+      +deleteChannel(cmd) ToolResult
+      +addEdge(cmd) ToolResult
+      +updateEdge(cmd) ToolResult
+      +deleteEdge(cmd) ToolResult
+      +deleteStep(cmd) ToolResult
       +connectSteps(cmd) ToolResult
       +setAdapterPolicy(cmd) ToolResult
+      +getIFlowStateMarkdown(id) ToolResult
+      +getIFlowStateMermaid(id) ToolResult
+      +rollbackIFlow(id, revision) ToolResult
       +validateIFlow(id) ToolResult
       +compileIFlow(id) ToolResult
+      +deployIFlow(id) ToolResult
+      +runSmokeTest(id) ToolResult
+      +readMpl(id) ToolResult
     }
 
     class IFlowApplicationService {
@@ -44,7 +61,9 @@ classDiagram
       +maxMutations
       +maxCompileAttempts
       +maxDeployAttempts
+      +maxSmokeTestAttempts
       +maxAutoFixIterations
+      +maxRepeatedSameErrorAttempts
     }
 
     class ProgressTracker {
@@ -66,9 +85,30 @@ classDiagram
       +recordFailure(system, operation)
     }
 
+    class IdempotencyChecker {
+      +fingerprint(command) String
+      +isDuplicate(command, history) boolean
+      +isNoOp(before, after) boolean
+    }
+
     class HumanHandoffPolicy {
       +shouldEscalate(loopAssessment) boolean
       +buildEscalation(error) AiFriendlyError
+    }
+
+    class AuditLogger {
+      +record(event)
+    }
+
+    class SensitiveDataRedactor {
+      +redact(value)
+      +redactToolCall(toolCall)
+      +redactError(error)
+    }
+
+    class ApprovalGate {
+      +requiresApproval(action, context) boolean
+      +requestApproval(action, context)
     }
 
     class IFlowBackendRegistry {
@@ -130,8 +170,12 @@ classDiagram
     OrchestrationGuard --> ProgressTracker
     OrchestrationGuard --> LoopDetector
     OrchestrationGuard --> CircuitBreaker
+    OrchestrationGuard --> IdempotencyChecker
     OrchestrationGuard --> HumanHandoffPolicy
+    OrchestrationGuard --> ApprovalGate
     OrchestrationGuard --> IFlowApplicationService
+    IFlowApplicationService --> AuditLogger
+    LlmToolFacade --> SensitiveDataRedactor
     IFlowApplicationService --> IFlowBackendRegistry
     IFlowBackendRegistry --> IFlowBackend
     IFlowBackend --> IFlowMaintainer
@@ -261,6 +305,8 @@ classDiagram
       <<enumeration>>
       MESSAGE_START
       MESSAGE_END
+      ERROR_START
+      ERROR_END
       SCRIPT
       CONTENT_MODIFIER
       JSON_TO_XML_CONVERTER
@@ -315,10 +361,19 @@ classDiagram
 
     class AdapterConfig {
       <<abstract>>
-      +type
+      +type: AdapterType
       +direction
       +externalizationPolicy
       +vendorExtensions
+    }
+
+    class AdapterType {
+      <<enumeration>>
+      HTTPS
+      XI
+      ODATA
+      SOAP
+      SFTP
     }
 
     class HttpsSenderAdapterConfig {
@@ -339,6 +394,28 @@ classDiagram
       +timeoutMs
     }
 
+    class ODataReceiverAdapterConfig {
+      +serviceName
+      +entitySet
+      +operation
+      +queryOptions
+      +credentialAlias
+    }
+
+    class SoapAdapterConfig {
+      +address
+      +wsdlRef
+      +soapVersion
+      +credentialAlias
+    }
+
+    class SftpAdapterConfig {
+      +host
+      +directory
+      +fileName
+      +credentialAlias
+    }
+
     class ParameterDefinition {
       +semanticName
       +sapExternalizedName
@@ -356,16 +433,40 @@ classDiagram
       +checksum
     }
 
+    class ExceptionPolicy {
+      +strategy
+      +subprocessRef
+      +returnExceptionToSender
+    }
+
+    class LayoutHint {
+      +elementRef
+      +x
+      +y
+      +width
+      +height
+    }
+
+    class OriginRef {
+      +bpmnElementId
+      +iflPropertyKeys
+      +sourceArtifactChecksum
+    }
+
     IFlowModel "1" --> "*" Participant
     IFlowModel "1" --> "*" Channel
     IFlowModel "1" --> "*" ProcessModel
     IFlowModel "1" --> "*" ParameterDefinition
     IFlowModel "1" --> "*" ResourceFile
+    IFlowModel "1" --> "*" LayoutHint
+    IFlowModel "1" --> "*" OriginRef
+    ProcessModel --> ExceptionPolicy
     ProcessModel "1" --> "*" Step
     ProcessModel "1" --> "*" Flow
     Channel --> AdapterConfig
     Step --> StepType
     Flow --> EdgeType
+    AdapterConfig --> AdapterType
 
     Step <|-- ScriptStep
     Step <|-- ContentModifierStep
@@ -376,6 +477,9 @@ classDiagram
 
     AdapterConfig <|-- HttpsSenderAdapterConfig
     AdapterConfig <|-- XiReceiverAdapterConfig
+    AdapterConfig <|-- ODataReceiverAdapterConfig
+    AdapterConfig <|-- SoapAdapterConfig
+    AdapterConfig <|-- SftpAdapterConfig
 ```
 
 ## 3. Factories、Repository、Validator、Compiler
@@ -391,12 +495,15 @@ classDiagram
 
     class ModelMutationService {
       +insertChannel(model, channel)
+      +updateChannel(model, command)
+      +deleteChannel(model, command)
       +insertStep(model, processRef, step, placement)
+      +updateStep(model, command)
+      +deleteStep(model, command)
       +connectSteps(model, command)
       +addEdge(model, command)
       +updateEdge(model, command)
       +deleteEdge(model, command)
-      +deleteStep(model, command)
       +updateAdapterPolicy(model, command)
     }
 
@@ -598,6 +705,13 @@ classDiagram
       +evaluate(toolCall, context) GuardDecision
     }
 
+    class IdempotencyChecker {
+      <<interface>>
+      +fingerprint(command) String
+      +isDuplicate(command, history) boolean
+      +isNoOp(before, after) boolean
+    }
+
     class KnowledgeRetriever {
       <<interface>>
       +retrieve(query) KnowledgeResult
@@ -620,6 +734,29 @@ classDiagram
       <<interface>>
       +put(artifact) ArtifactRef
       +get(ref) IFlowArtifact
+    }
+
+    class AuditLogger {
+      <<interface>>
+      +record(event)
+    }
+
+    class SensitiveDataRedactor {
+      <<interface>>
+      +redactToolCall(toolCall)
+      +redactResult(result)
+      +redactError(error)
+    }
+
+    class ApprovalGate {
+      <<interface>>
+      +requiresApproval(action, context) boolean
+      +requestApproval(action, context)
+    }
+
+    class AuthorizationPolicy {
+      <<interface>>
+      +authorize(user, action, resource) boolean
     }
 
     class SapDesignTimeClient {
@@ -646,6 +783,11 @@ classDiagram
 
     ToolProvider --> ToolExecutor
     ToolExecutor --> GuardPolicy
+    ToolExecutor --> IdempotencyChecker
+    ToolExecutor --> AuditLogger
+    ToolExecutor --> SensitiveDataRedactor
+    ToolExecutor --> ApprovalGate
+    ToolExecutor --> AuthorizationPolicy
     ToolExecutor --> IFlowBackend
     IFlowBackend --> IFlowMaintainer
     IFlowBackend --> IFlowValidator

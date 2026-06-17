@@ -24,7 +24,8 @@ flowchart TD
     subgraph LLMTools[LLM-facing abstract tools]
         Discovery[Discovery Tools<br/>OData / WSDL / Communication]
         Knowledge[Knowledge + Archetype Tools<br/>retrieveKnowledge / deriveArchetype / instantiateArchetype]
-        Edit[IFlow Editing Tools<br/>addSenderChannel / addScriptStep / addJsonToXmlConverter]
+        Edit[IFlow Editing Tools<br/>add/update/delete typed channels and steps<br/>addEdge / updateEdge / deleteEdge]
+        StateTools[State Tools<br/>getIFlowStateMarkdown / getIFlowStateMermaid / rollbackIFlow]
         Mapping[Mapping Tools<br/>suggest / validate mappings]
         Lifecycle[Lifecycle Tools<br/>validate / compile / deploy / test]
     end
@@ -32,12 +33,14 @@ flowchart TD
     Facade --> Discovery
     Facade --> Knowledge
     Facade --> Edit
+    Facade --> StateTools
     Facade --> Mapping
     Facade --> Lifecycle
 
     Discovery --> App[IFlow Application Service]
     Knowledge --> App
     Edit --> App
+    StateTools --> App
     Mapping --> App
     Lifecycle --> App
 
@@ -50,6 +53,7 @@ flowchart TD
         Maintainer --> Document[IFlowDocument Snapshot<br/>BPMN-backed or typed model]
         Validator --> Document
         Compiler --> Document
+        App --> Audit[Audit + Trace Service]
     end
 
     Compiler --> Bpmn[BPMN XML + SAP ifl Properties]
@@ -155,6 +159,7 @@ flowchart TD
     App --> KnowledgeSPI[Knowledge SPI]
     App --> ClientSPI[External Client SPI]
     App --> PersistenceSPI[Persistence SPI]
+    App --> SecuritySPI[Security / Audit SPI]
 
     ToolSPI --> ToolImpl1[Concrete LLM Tools]
     ToolSPI --> ToolImpl2[Future Domain-specific Tools]
@@ -168,6 +173,7 @@ flowchart TD
     GuardSPI --> Guard3[ProgressTracker]
     GuardSPI --> Guard4[CircuitBreaker]
     GuardSPI --> Guard5[HumanHandoffPolicy]
+    GuardSPI --> Guard6[IdempotencyChecker]
 
     KnowledgeSPI --> K1[Vector Knowledge Store]
     KnowledgeSPI --> K2[Archetype Store]
@@ -181,6 +187,11 @@ flowchart TD
     PersistenceSPI --> P1[In-memory Repository]
     PersistenceSPI --> P2[PostgreSQL Repository]
     PersistenceSPI --> P3[Object Storage Artifact Store]
+
+    SecuritySPI --> S1[AuditLogger]
+    SecuritySPI --> S2[SensitiveDataRedactor]
+    SecuritySPI --> S3[ApprovalGate]
+    SecuritySPI --> S4[AuthorizationPolicy]
 ```
 
 每个扩展点必须满足：
@@ -293,15 +304,31 @@ State mutation tools：
 - addXmlToJsonConverter。
 - addProcessCallStep。
 - addRequestReplyStep。
+- updateScriptStep。
+- updateContentModifierStep。
+- updateJsonToXmlConverter。
+- updateXmlToJsonConverter。
+- updateSenderChannel。
+- updateReceiverChannel。
+- deleteChannel。
+- addEdge。
+- updateEdge。
+- deleteEdge。
+- deleteStep。
 - connectSteps。
 - setAdapterPolicy。
 - setStepConfig。
 - addDataMappings。
+- getIFlowStateMarkdown。
+- getIFlowStateMermaid。
+- rollbackIFlow。
 - deriveArchetype。
 - instantiateArchetype。
 - compareIFlows。
 - compileIflow。
-- deployIflow。
+- deployIFlow。
+- runSmokeTest。
+- readMpl。
 
 Backend-only abstractions：
 
