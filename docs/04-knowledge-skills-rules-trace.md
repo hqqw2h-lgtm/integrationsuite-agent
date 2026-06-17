@@ -29,15 +29,16 @@
     "retrieveKnowledge",
     "getODataMetadata",
     "getInboundServiceUrl",
-    "createGraph",
-    "addNode",
-    "addEdge",
-    "validateGraph",
+    "createIFlow",
+    "addChannel",
+    "addStep",
+    "setAdapterPolicy",
+    "validateIFlow",
     "compileIflow",
     "uploadAndDeployIflow",
     "runSmokeTest"
   ],
-  "finalGraph": {},
+  "finalStateSummary": {},
   "testResult": "PASS",
   "lessons": [
     "Use _PurchaseOrderItem for OData V4 expand",
@@ -60,19 +61,19 @@ Skill 是可复用的工作流手册。
 3. 查询 $metadata。
 4. 使用 PurchaseOrder entity set。
 5. 如需 item，使用 $expand=_PurchaseOrderItem。
-6. 创建 HTTP sender。
-7. 添加 request reply 和 OData receiver。
-8. 部署前 validateGraph。
+6. 调用 tool 创建 HTTP sender channel。
+7. 调用 tool 添加 request reply 和 OData receiver。
+8. 部署前 validateIFlow。
 9. 部署后 runSmokeTest 并读取 MPL。
 常见坑：
 - V2 是 API_PURCHASEORDER_PROCESS_SRV，V4 是 API_PURCHASEORDER_2。
 - V2 item navigation 是 to_PurchaseOrderItem，V4 是 _PurchaseOrderItem。
-- 不要把 Communication User 密码写进 DSL。
+- 不要把 Communication User 密码作为 tool 参数传入；只引用 credential alias。
 ```
 
 ## 4. Rules
 
-Rules 是硬约束，必须同时给模型和后端校验器使用。
+Rules 是硬约束，必须同时约束 agent policy、tool schema 和后端校验器。
 
 示例：
 
@@ -80,7 +81,7 @@ Rules 是硬约束，必须同时给模型和后端校验器使用。
 - id: no-secrets-in-dsl
   severity: error
   description: Structured iFlow DSL must not contain passwords, tokens, or client secrets.
-  enforcement: graph-validator
+  enforcement: dsl-validator
 
 - id: odata-metadata-before-usage
   severity: error
@@ -89,13 +90,13 @@ Rules 是硬约束，必须同时给模型和后端校验器使用。
 
 - id: validate-before-compile
   severity: error
-  description: Graph must be validated before compiler runs.
+  description: iFlow must be validated before compiler runs.
   enforcement: lifecycle-service
 
 - id: exception-subprocess-for-production
   severity: warning
   description: Production iFlows should contain an exception subprocess.
-  enforcement: graph-validator
+  enforcement: dsl-validator
 ```
 
 ## 5. 知识库

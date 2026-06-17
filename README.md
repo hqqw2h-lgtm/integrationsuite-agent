@@ -7,20 +7,20 @@ The core idea is:
 ```text
 User requirement
   -> LangChain4j orchestrator
-  -> discovery tools / graph tools / knowledge tools
-  -> structured iFlow DSL
+  -> discovery tools / iFlow editing tools / knowledge tools
+  -> backend-owned structured iFlow DSL
   -> deterministic compiler
   -> iFlow ZIP upload, deployment, smoke test, and trace analysis
 ```
 
-The model never writes SAP BPMN XML directly. It calls tools such as `addNode`, `addEdge`, `setNodeProperties`, and `addDataMappings`; the backend validates and versions a structured iFlow DSL. JSON is only one persistence/API representation, not the abstraction boundary.
+The model never writes SAP BPMN XML or structured DSL directly. It only calls tools such as `addChannel`, `addStep`, `setAdapterPolicy`, and `addDataMappings`; the backend validates, mutates, and versions the structured iFlow DSL. JSON is only one persistence/API representation, not the abstraction boundary.
 
 ## Modules in this prototype
 
 - Requirement sessions and conversation trace
 - Tool call trace model
 - Structured iFlow DSL with participant/channel/process/step/resource/mapping state
-- Atomic graph editing tools
+- Atomic iFlow editing tools
 - OData discovery tool contracts with safe sample responses
 - Knowledge, rules, skills, and few-shot retrieval contracts
 - Compile/deploy/test lifecycle contracts with placeholder implementations
