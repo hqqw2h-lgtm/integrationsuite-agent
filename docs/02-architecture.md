@@ -109,6 +109,7 @@ State mutation tools：
 - addDataMappings。
 - deriveArchetype。
 - instantiateArchetype。
+- compareIFlows。
 - compileIflow。
 - deployIflow。
 
@@ -141,6 +142,7 @@ IFlow
 - compiler input。
 - semantic diff。
 - archetype extraction and instantiation。
+- canonical import and semantic fingerprinting。
 
 ### 3.6 Compiler 层
 

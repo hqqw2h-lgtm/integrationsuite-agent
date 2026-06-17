@@ -87,6 +87,8 @@
 
 - 收集基础 iFlow template ZIP。
 - 分析 `.iflw` BPMN XML 结构。
+- 实现 import canonicalization：解析 BPMN / `ifl` 属性、解码 SAP table XML、分离 layout hint。
+- 计算 semantic fingerprint，支持重复导入幂等识别。
 - 建立 participant / channel / process / step 到 SAP component XML 的映射。
 - 建立 process flow 和 channel binding 到 sequence/message flow 的映射。
 - 把 typed adapter / step config 投影为 `ifl:property`。

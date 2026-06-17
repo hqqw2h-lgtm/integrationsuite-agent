@@ -96,6 +96,7 @@ Agent / DSL 必须能抽象表达：
 - 不稳定实现细节：`CallActivity_*`、`SequenceFlow_*`、BPMN DI 坐标、SAP 编辑器重新生成的数字 ID，不能作为语义身份。
 - DSL 必须支持从多个样例抽取可复用模板，并能对模板实例做 semantic diff：只报告 namespace、channel 参数、adapter policy 等真实变化。
 - DSL 必须支持参数目录和 externalization policy：哪些 adapter 属性固定、哪些必须外部化、哪些从 tenant property / global persisted variable / credential alias 读取。
+- 重复导入同一个或等价 iFlow XML 必须幂等：系统应复用已有语义模型或创建新 revision，不能因为 BPMN ID、坐标或 XML 属性顺序产生重复模板。
 
 ## 5. 功能需求
 
@@ -115,6 +116,8 @@ Agent / DSL 必须能抽象表达：
 - DSL 必须支持导入已有 iFlow 后的 round-trip trace：每个语义元素可记录来源 BPMN element ID / `ifl` property key，但 Agent 编辑时默认面对抽象字段。
 - DSL 必须支持稳定语义身份：同一业务步骤在不同 iFlow 导入中即使 BPMN ID 不同，也应能通过 kind、name、process path、adapter binding 和业务角色匹配。
 - DSL 必须支持 iFlow archetype / template instance：把重复集成模式抽象成模板，把业务对象、namespace、endpoint path、receiver interface、adapter policy 和参数清单作为实例化变量。
+- DSL 必须支持 canonical form 和 semantic fingerprint，用于重复导入识别、模板归并、semantic diff 和 review。
+- DSL 参数必须区分 semantic name 与 SAP externalized parameter name，例如 `sender.clientCertificate.issuerDn` 可投影为 `MessageFlow_1_clientCertificate.issuerDN`。
 - SAP 专有属性必须优先映射到类型化 adapter / step 配置；暂未建模的属性才放入 `vendorExtensions`。
 - DSL 不允许保存明文密码、token、client secret。
 - 所有 node type、edge type、properties 必须 schema 校验。

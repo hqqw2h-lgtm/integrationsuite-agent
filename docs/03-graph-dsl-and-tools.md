@@ -355,15 +355,15 @@ DSL 应显式维护参数目录，而不是只在字符串里保留 `{{...}}`：
 
 ```text
 parameters {
-  MessageFlow_1_urlPath : endpointPath externalized required
-  MessageFlow_1_senderAuthType : authType externalized required
-  MessageFlow_1_clientCertificate.subjectDN : certificateSubject externalized optional
-  MessageFlow_1_clientCertificate.issuerDN : certificateIssuer externalized optional
+  sender.urlPath : endpointPath externalized("MessageFlow_1_urlPath") required
+  sender.authType : authType externalized("MessageFlow_1_senderAuthType") required
+  sender.clientCertificate.subjectDn : certificateSubject externalized("MessageFlow_1_clientCertificate.subjectDN") optional
+  sender.clientCertificate.issuerDn : certificateIssuer externalized("MessageFlow_1_clientCertificate.issuerDN") optional
 
-  MessageFlow_3_AuthenticationType : authType externalized required
-  MessageFlow_3_QualityOfService : xiQualityOfService externalized required
-  MessageFlow_3_cleanupHeaders : boolean externalized default(true)
-  MessageFlow_3_proxyHost : host externalized optional
+  receiver.authType : authType externalized("MessageFlow_3_AuthenticationType") required
+  receiver.qualityOfService : xiQualityOfService externalized("MessageFlow_3_QualityOfService") required
+  receiver.cleanupHeaders : boolean externalized("MessageFlow_3_cleanupHeaders") default(true)
+  receiver.proxy.host : host externalized("MessageFlow_3_proxyHost") optional
 
   SAPHost : tenantProperty required
   SAPClient : tenantProperty required
@@ -403,6 +403,79 @@ adapter xi over http {
 ```
 
 这可以支持同一个 archetype 在不同环境或业务对象上采用不同 externalization 策略。
+
+### 5.5 Canonical Form 与幂等导入
+
+同一个 IncomingInvoice iFlow 可能被多次贴给 Agent，或者从 SAP 下载时只改变 XML 格式、属性顺序、BPMN ID、坐标。导入器必须先生成 canonical form，再决定是创建新模型、更新 revision，还是识别为重复样例。
+
+Canonical import pipeline：
+
+```text
+raw BPMN XML
+  -> parse BPMN / ifl properties
+  -> decode escaped SAP table XML
+  -> classify participant / channel / process / step
+  -> resolve sequence flow into process order
+  -> assign semantic keys
+  -> normalize parameters and expressions
+  -> drop or isolate layout hints
+  -> produce canonical DSL
+  -> compute semantic fingerprint
+```
+
+Canonical form 必须排除：
+
+- BPMN element numeric suffix。
+- shape / edge ID。
+- waypoint 和 Bounds 坐标。
+- XML attribute order、空 extensionElements、空 description。
+- SAP 编辑器重排但语义不变的 sequence flow ID。
+
+Canonical form 必须保留：
+
+- participant role 和 system name。
+- channel adapter type、direction、protocol、message protocol。
+- typed adapter policy。
+- process kind、step kind、normalized step name、step order。
+- header/property/body assignments。
+- namespace URI、service interface namespace、credential alias reference。
+- externalization policy。
+
+`semanticFingerprint` 应由 canonical DSL 计算，例如：
+
+```text
+semanticFingerprint = sha256(canonicalDslWithoutOriginAndLayout)
+```
+
+同一个 fingerprint 再次导入时，系统应记录新的 raw artifact checksum 和 origin refs，但不应创建重复 archetype。
+
+### 5.6 参数 semantic name 与 SAP name
+
+SAP externalized parameter 常带有 MessageFlow ID，例如 `MessageFlow_1_clientCertificate.issuerDN`。这个名字适合编译回 SAP artifact，但不适合作为 DSL 的长期语义名，因为 MessageFlow ID 可能变化。
+
+DSL 参数需要同时保存：
+
+```text
+parameter sender.clientCertificate.issuerDn {
+  type certificateIssuer
+  required false
+  externalized {
+    sapName "MessageFlow_1_clientCertificate.issuerDN"
+    owner channel("REST_IncomingInvoice_Sender")
+  }
+}
+
+parameter receiver.proxy.host {
+  type host
+  required false
+  externalized {
+    sapName "MessageFlow_3_proxyHost"
+    owner channel("SOAP_Receiver_MM")
+  }
+}
+```
+
+Agent、validation、semantic diff 使用 semantic name；compiler projection 使用 `sapName`。如果 SAP 重新生成 MessageFlow ID，只需要更新 projection alias，不应影响业务 DSL。
 
 ## 6. 结构化序列化示意
 
@@ -736,9 +809,12 @@ arrayPaths [
 {
   "artifactId": "REST_InboundDelivery_To_S4",
   "preserveOriginRefs": true,
-  "unknownPropertyStrategy": "vendorExtensions"
+  "unknownPropertyStrategy": "vendorExtensions",
+  "idempotencyMode": "semantic-fingerprint"
 }
 ```
+
+导入结果必须返回 raw artifact checksum、semantic fingerprint、是否匹配已有 DSL / archetype，以及被忽略的 editor-only diff。
 
 ### 10.8 deriveArchetype
 
@@ -769,6 +845,21 @@ arrayPaths [
 }
 ```
 
+### 10.10 compareIFlows
+
+比较两个导入结果或两个 DSL revision：
+
+```json
+{
+  "leftIFlowId": "iflow_incoming_invoice_a",
+  "rightIFlowId": "iflow_incoming_invoice_b",
+  "mode": "semantic",
+  "ignore": ["originRefs", "layoutHints", "editorGeneratedIds"]
+}
+```
+
+重复导入同一 IncomingInvoice XML 时，期望 diff 为空或只包含 raw artifact checksum / origin refs。
+
 ## 11. Validation Rules
 
 MVP 必须包含：
@@ -784,6 +875,8 @@ MVP 必须包含：
 - 所有 externalized parameter 引用必须在参数目录中有类型、作用域和 required / optional 标记。
 - archetype instance 必须填充所有 required variables。
 - semantic diff 默认忽略 BPMN ID、shape ID、waypoint 和 SAP 编辑器生成的 sequence ID。
+- 重复导入相同 semantic fingerprint 时必须幂等，不能创建重复 archetype。
+- 每个 externalized parameter 必须同时有 semantic name 和 SAP projection name。
 - 表格型属性导入后必须结构化，不能只保存 escaped XML 字符串。
 - 生产 iFlow 必须有 exception subprocess 或显式声明无需异常处理。
 - DSL 禁止保存 password、secret、token、client secret。
