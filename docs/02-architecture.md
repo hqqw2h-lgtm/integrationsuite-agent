@@ -145,6 +145,52 @@ flowchart TD
     Compiler --> Zip[iFlow ZIP]
 ```
 
+### 2.4 Extensibility map
+
+```mermaid
+flowchart TD
+    App[IFlowApplicationService] --> ToolSPI[Tool SPI]
+    App --> BackendSPI[IFlowBackend SPI]
+    App --> GuardSPI[Guardrail SPI]
+    App --> KnowledgeSPI[Knowledge SPI]
+    App --> ClientSPI[External Client SPI]
+    App --> PersistenceSPI[Persistence SPI]
+
+    ToolSPI --> ToolImpl1[Concrete LLM Tools]
+    ToolSPI --> ToolImpl2[Future Domain-specific Tools]
+
+    BackendSPI --> Backend1[BpmnIFlowBackend]
+    BackendSPI --> Backend2[TypedModelIFlowBackend]
+    BackendSPI --> Backend3[JsonIFlowBackend]
+
+    GuardSPI --> Guard1[BudgetPolicy]
+    GuardSPI --> Guard2[LoopDetector]
+    GuardSPI --> Guard3[ProgressTracker]
+    GuardSPI --> Guard4[CircuitBreaker]
+    GuardSPI --> Guard5[HumanHandoffPolicy]
+
+    KnowledgeSPI --> K1[Vector Knowledge Store]
+    KnowledgeSPI --> K2[Archetype Store]
+    KnowledgeSPI --> K3[Rule Store]
+
+    ClientSPI --> C1[SAP Design-time Client]
+    ClientSPI --> C2[SAP Runtime Client]
+    ClientSPI --> C3[OData Metadata Client]
+    ClientSPI --> C4[MPL Trace Client]
+
+    PersistenceSPI --> P1[In-memory Repository]
+    PersistenceSPI --> P2[PostgreSQL Repository]
+    PersistenceSPI --> P3[Object Storage Artifact Store]
+```
+
+每个扩展点必须满足：
+
+- 通过 interface / SPI 暴露能力。
+- 默认实现可替换。
+- 输入输出使用稳定 DTO / command / result。
+- 低层异常必须转换为 AI-friendly error 或 diagnostics。
+- 实现之间不能互相依赖具体类，只依赖抽象契约。
+
 ## 3. 分层设计
 
 ### 3.1 API 层

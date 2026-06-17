@@ -542,3 +542,181 @@ classDiagram
     IFlowImporter --> ArchetypeService
     IFlowImporter --> ImportResult
 ```
+
+## 5. 全局 SPI 扩展点
+
+所有组件都必须依赖接口，不依赖具体实现。新增维护方式、编译方式、知识库、外部客户端、持久化存储或 guard policy 时，不应修改 LLM-facing tool contract。
+
+```mermaid
+classDiagram
+    class ToolProvider {
+      <<interface>>
+      +tools() List~ToolDefinition~
+    }
+
+    class ToolExecutor {
+      <<interface>>
+      +execute(toolCall, context) ToolResult
+    }
+
+    class IFlowBackend {
+      <<interface>>
+      +supports(workspace) boolean
+      +maintainer(workspace) IFlowMaintainer
+      +validator() IFlowValidator
+      +compiler() IFlowCompiler
+    }
+
+    class IFlowMaintainer {
+      <<interface>>
+      +apply(command) ToolResult
+      +snapshot() IFlowDocument
+      +rollbackTo(revision) ToolResult
+      +renderMarkdown(options) String
+      +renderMermaid(options) String
+    }
+
+    class IFlowCompiler {
+      <<interface>>
+      +compile(document) IFlowArtifact
+    }
+
+    class IFlowValidator {
+      <<interface>>
+      +validate(document) ValidationReport
+    }
+
+    class StateRenderer {
+      <<interface>>
+      +renderMarkdown(document, options) String
+      +renderMermaid(document, options) String
+      +renderSummary(document, options) StateSummary
+    }
+
+    class GuardPolicy {
+      <<interface>>
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class KnowledgeRetriever {
+      <<interface>>
+      +retrieve(query) KnowledgeResult
+    }
+
+    class ArchetypeRepository {
+      <<interface>>
+      +findCandidates(fingerprint) List~IFlowArchetype~
+      +save(archetype)
+    }
+
+    class IFlowRepository {
+      <<interface>>
+      +findById(id) IFlowDocument
+      +saveRevision(document)
+      +findByFingerprint(fingerprint) IFlowDocument
+    }
+
+    class ArtifactStore {
+      <<interface>>
+      +put(artifact) ArtifactRef
+      +get(ref) IFlowArtifact
+    }
+
+    class SapDesignTimeClient {
+      <<interface>>
+      +upload(artifact) DeploymentRef
+      +deploy(ref) DeploymentStatus
+    }
+
+    class SapRuntimeClient {
+      <<interface>>
+      +runSmokeTest(endpoint, request) SmokeTestResult
+    }
+
+    class MplTraceClient {
+      <<interface>>
+      +readMpl(id) MplSummary
+      +readTrace(id) TraceSummary
+    }
+
+    class ODataMetadataClient {
+      <<interface>>
+      +getMetadata(system, service) ODataMetadata
+    }
+
+    ToolProvider --> ToolExecutor
+    ToolExecutor --> GuardPolicy
+    ToolExecutor --> IFlowBackend
+    IFlowBackend --> IFlowMaintainer
+    IFlowBackend --> IFlowValidator
+    IFlowBackend --> IFlowCompiler
+    IFlowMaintainer --> StateRenderer
+    IFlowMaintainer --> IFlowRepository
+    IFlowCompiler --> ArtifactStore
+    ToolExecutor --> KnowledgeRetriever
+    ToolExecutor --> ArchetypeRepository
+    ToolExecutor --> SapDesignTimeClient
+    ToolExecutor --> SapRuntimeClient
+    ToolExecutor --> MplTraceClient
+    ToolExecutor --> ODataMetadataClient
+```
+
+## 6. Guardrail 策略类图
+
+```mermaid
+classDiagram
+    class GuardPolicy {
+      <<interface>>
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class BudgetGuardPolicy {
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class RepeatedToolCallPolicy {
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class RepeatedErrorPolicy {
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class NoOpMutationPolicy {
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class CircuitBreakerPolicy {
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class HumanHandoffPolicy {
+      +evaluate(toolCall, context) GuardDecision
+    }
+
+    class GuardDecision {
+      +allowed
+      +reason
+      +error
+      +requiredAction
+    }
+
+    class GuardContext {
+      +sessionId
+      +toolHistory
+      +revisionHistory
+      +errorHistory
+      +budget
+      +lastValidRevision
+    }
+
+    GuardPolicy <|.. BudgetGuardPolicy
+    GuardPolicy <|.. RepeatedToolCallPolicy
+    GuardPolicy <|.. RepeatedErrorPolicy
+    GuardPolicy <|.. NoOpMutationPolicy
+    GuardPolicy <|.. CircuitBreakerPolicy
+    GuardPolicy <|.. HumanHandoffPolicy
+    GuardPolicy --> GuardDecision
+    GuardPolicy --> GuardContext
+    GuardDecision --> AiFriendlyError
+```
